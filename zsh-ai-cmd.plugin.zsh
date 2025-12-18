@@ -12,6 +12,7 @@
 typeset -g ZSH_AI_CMD_KEY=${ZSH_AI_CMD_KEY:-'^z'}
 typeset -g ZSH_AI_CMD_DEBUG=${ZSH_AI_CMD_DEBUG:-false}
 typeset -g ZSH_AI_CMD_MODEL=${ZSH_AI_CMD_MODEL:-'claude-haiku-4-5-20251001'}
+typeset -g ZSH_AI_CMD_LOG=${ZSH_AI_CMD_LOG:-/tmp/zsh-ai-cmd.log}
 
 # ============================================================================
 # Internal State
@@ -80,7 +81,7 @@ PWD: $PWD
 
 _zsh_ai_cmd_show_ghost() {
   local suggestion=$1
-  [[ $ZSH_AI_CMD_DEBUG == true ]] && print -- "show_ghost: suggestion='$suggestion' BUFFER='$BUFFER'" >> /tmp/zsh-ai-cmd.log
+  [[ $ZSH_AI_CMD_DEBUG == true ]] && print -- "show_ghost: suggestion='$suggestion' BUFFER='$BUFFER'" >> $ZSH_AI_CMD_LOG
 
   if [[ -n $suggestion && $suggestion != $BUFFER ]]; then
     if [[ $suggestion == ${BUFFER}* ]]; then
@@ -90,7 +91,7 @@ _zsh_ai_cmd_show_ghost() {
       # Suggestion is different - show with arrow
       POSTDISPLAY=" → $suggestion"
     fi
-    [[ $ZSH_AI_CMD_DEBUG == true ]] && print -- "show_ghost: POSTDISPLAY='$POSTDISPLAY'" >> /tmp/zsh-ai-cmd.log
+    [[ $ZSH_AI_CMD_DEBUG == true ]] && print -- "show_ghost: POSTDISPLAY='$POSTDISPLAY'" >> $ZSH_AI_CMD_LOG
   else
     POSTDISPLAY=""
   fi
@@ -169,7 +170,7 @@ _zsh_ai_cmd_call_api() {
       print -- "--- RESPONSE ---"
       command jq . <<< "$response"
       print ""
-    } >>/tmp/zsh-ai-cmd.log
+    } >>$ZSH_AI_CMD_LOG
   fi
 
   # Extract command from structured output
