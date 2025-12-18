@@ -4,15 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-zsh-ai-cmd is a single-file zsh plugin that translates natural language to shell commands using the Anthropic API. User types a description, presses `Ctrl+Z`, and gets executable shell output.
+zsh-ai-cmd is a single-file zsh plugin that translates natural language to shell commands using the Anthropic API. User types a description, presses `Ctrl+Z`, and sees the suggestion as ghost text. Tab accepts, typing dismisses.
 
 ## Architecture
 
 The entire plugin lives in @zsh-ai-cmd.plugin.zsh . Key components:
 
-- **Widget function** `_zsh_ai_cmd_suggest`: Main entry point bound to keybinding. Captures buffer text, builds API payload, calls API, replaces buffer with suggestion.
+**Core Flow:**
+- **Widget function** `_zsh_ai_cmd_suggest`: Main entry point bound to keybinding. Captures buffer text, shows spinner, calls API, displays result as ghost text via `POSTDISPLAY`.
 - **API call** `_zsh_ai_cmd_call_api`: Background curl with animated braille spinner. Uses ZLE redraw for UI updates during blocking wait.
 - **Key retrieval** `_zsh_ai_cmd_get_key`: Lazy-loads API key from env var or macOS Keychain.
+
+**Ghost Text System:**
+- **`_zsh_ai_cmd_show_ghost`**: Displays suggestion in `POSTDISPLAY`. If suggestion extends current buffer, shows suffix only. Otherwise shows ` → suggestion`.
+- **`_zsh_ai_cmd_clear_ghost`**: Clears `POSTDISPLAY` and resets suggestion state.
+- **`_zsh_ai_cmd_update_ghost_on_edit`**: Called on keystroke. Clears ghost if user's edits diverge from suggestion.
+- **`_zsh_ai_cmd_accept`**: Tab handler. Accepts suggestion into buffer or falls through to normal tab completion.
 
 ## Testing
 
@@ -29,7 +36,7 @@ list files modified today<Ctrl+Z>
 Enable debug logging:
 ```sh
 ZSH_AI_CMD_DEBUG=true
-tail -f /tmp/zsh-ai-cmd.log
+tail -f ${ZSH_AI_CMD_LOG:-/tmp/zsh-ai-cmd.log}
 ```
 
 ## Code Conventions
@@ -45,4 +52,7 @@ When modifying the spinner or UI code:
 - `zle -R` forces redraw within widget context
 - `zle -M` shows messages in minibuffer
 - Background jobs need `NO_NOTIFY NO_MONITOR` to suppress job control noise
-- `read -t 0.08` provides non-blocking sleep without external deps
+- `read -t 0.1` provides non-blocking sleep without external deps
+
+**Widget Wrapping:**
+The plugin wraps `self-insert` and `backward-delete-char` to intercept keystrokes and update ghost text. This uses `zle .self-insert` (with dot prefix) to call the original widget. The idempotency guard at the top prevents double-wrapping if the plugin is sourced multiple times.

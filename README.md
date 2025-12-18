@@ -1,6 +1,6 @@
 # zsh-ai-cmd
 
-Natural language to shell commands. Type what you want, press `Ctrl+Z`, get the command.
+Natural language to shell commands with ghost text preview.
 
 ## Install
 
@@ -21,18 +21,18 @@ security add-generic-password -s 'anthropic-api-key' -a "$USER" -w 'sk-ant-...'
 
 ## Usage
 
-Type a description, press `Ctrl+Z`:
+1. Type a natural language description
+2. Press `Ctrl+Z` to request a suggestion
+3. Ghost text appears showing the command: `find large files → command find . -size +100M`
+4. Press `Tab` to accept, or keep typing to dismiss
 
-```
-find large files modified this week  ->  command find . -type f -mtime -7 -size +10M -exec ls -lh {} \;
-```
-
-The command replaces your input. Press Enter to run, or edit first.
+If the suggestion extends your input (you started typing a command), ghost text shows the completion inline. Otherwise, it shows the full suggestion with an arrow.
 
 ## Configuration
 
 ```sh
 ZSH_AI_CMD_KEY='^z'                          # Trigger key (default: Ctrl+Z)
 ZSH_AI_CMD_MODEL='claude-haiku-4-5-20251001' # Model
-ZSH_AI_CMD_DEBUG=false                       # Log to /tmp/zsh-ai-cmd.log
+ZSH_AI_CMD_DEBUG=false                       # Enable debug logging
+ZSH_AI_CMD_LOG=/tmp/zsh-ai-cmd.log           # Debug log path
 ```
