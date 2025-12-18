@@ -2,6 +2,8 @@
 
 Natural language to shell commands with ghost text preview.
 
+![Demo](assets/preview.gif)
+
 ## Install
 
 Requires `curl`, `jq`, and an [Anthropic API key](https://console.anthropic.com/).
