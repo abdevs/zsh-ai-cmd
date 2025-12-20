@@ -111,16 +111,6 @@ _zsh_ai_cmd_show_ghost() {
   fi
 }
 
-_zsh_ai_cmd_clear_ghost() {
-  POSTDISPLAY=""
-  _ZSH_AI_CMD_SUGGESTION=""
-  # Remove our specific highlight entry only
-  [[ -n $_ZSH_AI_CMD_LAST_HIGHLIGHT ]] && {
-    region_highlight=("${(@)region_highlight:#$_ZSH_AI_CMD_LAST_HIGHLIGHT}")
-    _ZSH_AI_CMD_LAST_HIGHLIGHT=""
-  }
-}
-
 # ============================================================================
 # Dormant/Active State Machine
 # ============================================================================

@@ -39,13 +39,13 @@ All providers use structured outputs (JSON schema) where supported for reliable 
 
 **Ghost Text System:**
 - **`_zsh_ai_cmd_show_ghost`**: Displays suggestion in `POSTDISPLAY`. If suggestion extends current buffer, shows suffix only. Otherwise shows ` ⇥ suggestion`.
-- **`_zsh_ai_cmd_clear_ghost`**: Clears `POSTDISPLAY` and resets suggestion state.
-- **`_zsh_ai_cmd_accept`**: Tab handler. Accepts suggestion into buffer or falls through to normal tab completion.
 
 **State Machine:**
 - **`_zsh_ai_cmd_activate`**: Called after suggestion shown. Captures current Tab/right-arrow bindings, temporarily overrides them.
-- **`_zsh_ai_cmd_deactivate`**: Restores original bindings, clears state. Called on accept or buffer divergence.
+- **`_zsh_ai_cmd_deactivate`**: Restores original bindings, clears ghost text and state. Called on accept or buffer divergence.
 - **`_zsh_ai_cmd_pre_redraw`**: Hook that detects buffer changes. If buffer diverges from suggestion, deactivates.
+- **`_zsh_ai_cmd_accept`**: Tab handler. Accepts suggestion into buffer or falls through to original Tab binding.
+- **`_zsh_ai_cmd_accept_arrow`**: Right arrow handler. Accepts suggestion or falls through to original binding.
 
 ## Testing
 
