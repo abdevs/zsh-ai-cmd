@@ -13,6 +13,9 @@ typeset -g ZSH_AI_CMD_KEY=${ZSH_AI_CMD_KEY:-'^z'}
 typeset -g ZSH_AI_CMD_DEBUG=${ZSH_AI_CMD_DEBUG:-false}
 typeset -g ZSH_AI_CMD_LOG=${ZSH_AI_CMD_LOG:-/tmp/zsh-ai-cmd.log}
 typeset -g ZSH_AI_CMD_HIGHLIGHT=${ZSH_AI_CMD_HIGHLIGHT:-'fg=8'}
+
+# Keychain entry name for API key lookup. Single quotes delay ${provider} expansion
+# until _zsh_ai_cmd_get_key() runs. Override with a literal name if needed.
 typeset -g ZSH_AI_CMD_KEYCHAIN_NAME=${ZSH_AI_CMD_KEYCHAIN_NAME:-'${provider}-api-key'}
 
 # Provider selection (anthropic, openai, gemini, deepseek, ollama)

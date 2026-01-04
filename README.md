@@ -45,6 +45,9 @@ ZSH_AI_CMD_HIGHLIGHT='fg=8'                  # Ghost text style (zsh region_high
 ZSH_AI_CMD_DEBUG=false                       # Enable debug logging
 ZSH_AI_CMD_LOG=/tmp/zsh-ai-cmd.log           # Debug log path
 
+# macOS Keychain lookup (${provider} is interpolated at runtime)
+ZSH_AI_CMD_KEYCHAIN_NAME='${provider}-api-key'  # Or use a fixed name: 'my-api-key'
+
 # Provider-specific models (defaults shown)
 ZSH_AI_CMD_ANTHROPIC_MODEL='claude-haiku-4-5-20251001'
 ZSH_AI_CMD_OPENAI_MODEL='gpt-5.2-2025-12-11'
