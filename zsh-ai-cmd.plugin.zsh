@@ -14,6 +14,10 @@ typeset -g ZSH_AI_CMD_DEBUG=${ZSH_AI_CMD_DEBUG:-false}
 typeset -g ZSH_AI_CMD_LOG=${ZSH_AI_CMD_LOG:-/tmp/zsh-ai-cmd.log}
 typeset -g ZSH_AI_CMD_HIGHLIGHT=${ZSH_AI_CMD_HIGHLIGHT:-'fg=8'}
 
+# Keychain entry name for API key lookup. Single quotes delay ${provider} expansion
+# until _zsh_ai_cmd_get_key() runs. Override with a literal name if needed.
+typeset -g ZSH_AI_CMD_KEYCHAIN_NAME=${ZSH_AI_CMD_KEYCHAIN_NAME:-'${provider}-api-key'}
+
 # Provider selection (anthropic, openai, gemini, deepseek, ollama)
 typeset -g ZSH_AI_CMD_PROVIDER=${ZSH_AI_CMD_PROVIDER:-'anthropic'}
 
@@ -78,6 +82,7 @@ source "${0:a:h}/providers/openai.zsh"
 source "${0:a:h}/providers/ollama.zsh"
 source "${0:a:h}/providers/deepseek.zsh"
 source "${0:a:h}/providers/gemini.zsh"
+source "${0:a:h}/providers/copilot.zsh"
 
 # ============================================================================
 # Ghost Text Display
@@ -199,6 +204,7 @@ _zsh_ai_cmd_call_api() {
     ollama)    _zsh_ai_cmd_ollama_call "$input" "$prompt" ;;
     deepseek)  _zsh_ai_cmd_deepseek_call "$input" "$prompt" ;;
     gemini)    _zsh_ai_cmd_gemini_call "$input" "$prompt" ;;
+    copilot)   _zsh_ai_cmd_copilot_call "$input" "$prompt" ;;
     *) print -u2 "zsh-ai-cmd: Unknown provider '$ZSH_AI_CMD_PROVIDER'"; return 1 ;;
   esac
 }
@@ -218,7 +224,7 @@ _zsh_ai_cmd_suggest() {
 
   # Start API call in background (suppress job control noise)
   local tmpfile=$(mktemp)
-  setopt local_options no_notify no_monitor
+  setopt local_options no_notify no_monitor clobber
   ( _zsh_ai_cmd_call_api "$BUFFER" > "$tmpfile" ) &!
   local pid=$!
 
@@ -311,11 +317,11 @@ fi
 _zsh_ai_cmd_get_key() {
   local provider=$ZSH_AI_CMD_PROVIDER
 
-  # Ollama doesn't need a key
-  [[ $provider == ollama ]] && return 0
+  # Ollama and Copilot don't need a key
+  [[ $provider == ollama || $provider == copilot ]] && return 0
 
   local key_var="${(U)provider}_API_KEY"
-  local keychain_name="${provider}-api-key"
+  local keychain_name="${(e)ZSH_AI_CMD_KEYCHAIN_NAME}"
 
   # Check env var
   [[ -n ${(P)key_var} ]] && return 0
