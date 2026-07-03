@@ -18,6 +18,11 @@ typeset -g ZSH_AI_CMD_HIGHLIGHT=${ZSH_AI_CMD_HIGHLIGHT:-'fg=8'}
 # until _zsh_ai_cmd_get_key() runs. Override with a literal name if needed.
 typeset -g ZSH_AI_CMD_KEYCHAIN_NAME=${ZSH_AI_CMD_KEYCHAIN_NAME:-'${provider}-api-key'}
 
+# Custom command for API key retrieval. Uses ${provider} expansion at runtime.
+# If command returns empty/fails, falls back to macOS Keychain.
+# Examples: 'pass ${provider}-api-key', 'secret-tool lookup service ${provider}'
+typeset -g ZSH_AI_CMD_API_KEY_COMMAND=${ZSH_AI_CMD_API_KEY_COMMAND:-''}
+
 # Provider selection (anthropic, openai, gemini, deepseek, ollama)
 typeset -g ZSH_AI_CMD_PROVIDER=${ZSH_AI_CMD_PROVIDER:-'anthropic'}
 
@@ -32,6 +37,18 @@ typeset -g _ZSH_AI_CMD_SUGGESTION=""
 
 # OS detection (lazy-loaded on first API call)
 typeset -g _ZSH_AI_CMD_OS=""
+
+# Detected tool capabilities (lazy-loaded on first API call)
+typeset -g _ZSH_AI_CMD_CAPS=""
+
+# Tools probed for capability grounding. Standard POSIX utilities are assumed
+# present and omitted; this list is modern alternatives, GNU coreutils on macOS,
+# and common dev/cloud tools the model should only suggest when actually installed.
+typeset -ga ZSH_AI_CMD_PROBE_TOOLS=(
+  rg fd eza bat fzf delta zoxide sd jq yq
+  gdate gsed gawk gtimeout
+  gh docker kubectl terraform podman
+)
 
 # Dormant/Active state machine
 typeset -g _ZSH_AI_CMD_ACTIVE=0
@@ -80,9 +97,11 @@ source "${0:a:h}/prompt.zsh"
 source "${0:a:h}/providers/anthropic.zsh"
 source "${0:a:h}/providers/openai.zsh"
 source "${0:a:h}/providers/ollama.zsh"
+source "${0:a:h}/providers/lmstudio.zsh"
 source "${0:a:h}/providers/deepseek.zsh"
 source "${0:a:h}/providers/gemini.zsh"
 source "${0:a:h}/providers/copilot.zsh"
+source "${0:a:h}/providers/claude-code.zsh"
 
 # ============================================================================
 # Ghost Text Display
@@ -195,6 +214,17 @@ _zsh_ai_cmd_call_api() {
     fi
   fi
 
+  # Lazy capability detection (pure zsh: $commands hash lookup, no subprocesses)
+  if [[ -z $_ZSH_AI_CMD_CAPS ]]; then
+    local _tool _present=()
+    for _tool in $ZSH_AI_CMD_PROBE_TOOLS; do
+      (( $+commands[$_tool] )) && _present+=$_tool
+    done
+    # Sentinel space marks detection as done even when nothing is found,
+    # so we don't re-probe on every call.
+    _ZSH_AI_CMD_CAPS="${(j:, :)_present} "
+  fi
+
   local context="${(e)_ZSH_AI_CMD_CONTEXT}"
   local prompt="${_ZSH_AI_CMD_PROMPT}"$'\n'"${context}"
 
@@ -202,9 +232,11 @@ _zsh_ai_cmd_call_api() {
     anthropic) _zsh_ai_cmd_anthropic_call "$input" "$prompt" ;;
     openai)    _zsh_ai_cmd_openai_call "$input" "$prompt" ;;
     ollama)    _zsh_ai_cmd_ollama_call "$input" "$prompt" ;;
+    lmstudio)  _zsh_ai_cmd_lmstudio_call "$input" "$prompt" ;;
     deepseek)  _zsh_ai_cmd_deepseek_call "$input" "$prompt" ;;
     gemini)    _zsh_ai_cmd_gemini_call "$input" "$prompt" ;;
-    copilot)   _zsh_ai_cmd_copilot_call "$input" "$prompt" ;;
+    copilot)     _zsh_ai_cmd_copilot_call "$input" "$prompt" ;;
+    claude-code) _zsh_ai_cmd_claude_code_call "$input" "$prompt" ;;
     *) print -u2 "zsh-ai-cmd: Unknown provider '$ZSH_AI_CMD_PROVIDER'"; return 1 ;;
   esac
 }
@@ -315,16 +347,48 @@ fi
 # ============================================================================
 
 _zsh_ai_cmd_get_key() {
-  local provider=$ZSH_AI_CMD_PROVIDER
+  local provider="${(L)ZSH_AI_CMD_PROVIDER}"  # Normalize provider to lowercase
 
-  # Ollama and Copilot don't need a key
-  [[ $provider == ollama || $provider == copilot ]] && return 0
+  # LMStudio, Ollama, Copilot, and Claude Code don't need a key
+  [[ $provider == lmstudio || $provider == ollama || $provider == copilot || $provider == claude-code ]] && return 0
 
   local key_var="${(U)provider}_API_KEY"
   local keychain_name="${(e)ZSH_AI_CMD_KEYCHAIN_NAME}"
 
   # Check env var
   [[ -n ${(P)key_var} ]] && return 0
+
+  # Try custom command if configured
+  if [[ -n $ZSH_AI_CMD_API_KEY_COMMAND ]]; then
+    local expanded_command="${(e)ZSH_AI_CMD_API_KEY_COMMAND}"
+
+    [[ $ZSH_AI_CMD_DEBUG == true ]] && {
+      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [get_key] ===" >> $ZSH_AI_CMD_LOG
+      print -- "provider: $provider" >> $ZSH_AI_CMD_LOG
+      print -- "command: $expanded_command" >> $ZSH_AI_CMD_LOG
+    }
+
+    local key
+    key=$(eval "$expanded_command" 2>/dev/null)
+
+    if [[ $? -eq 0 && -n $key ]]; then
+      # Sanitize command output (security: strip control chars, escapes)
+      key=$(_zsh_ai_cmd_sanitize "$key")
+
+      [[ $ZSH_AI_CMD_DEBUG == true ]] && {
+        print -- "result: success (${#key} chars after sanitization)" >> $ZSH_AI_CMD_LOG
+        print "" >> $ZSH_AI_CMD_LOG
+      }
+
+      typeset -g "$key_var"="$key"
+      return 0
+    else
+      [[ $ZSH_AI_CMD_DEBUG == true ]] && {
+        print -- "result: command failed or returned empty, trying keychain" >> $ZSH_AI_CMD_LOG
+        print "" >> $ZSH_AI_CMD_LOG
+      }
+    fi
+  fi
 
   # Try macOS Keychain
   local key

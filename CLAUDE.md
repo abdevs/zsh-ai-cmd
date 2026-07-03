@@ -12,18 +12,34 @@ The main plugin lives in @zsh-ai-cmd.plugin.zsh with provider implementations in
 
 ### Supported Providers
 
- | Provider   | File                      | Default Model               | API Key Env Var     |
- | ---------- | ------                    | ---------------             | -----------------   |
- | Anthropic  | `providers/anthropic.zsh` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
- | OpenAI     | `providers/openai.zsh`    | `gpt-5.2-2025-12-11`        | `OPENAI_API_KEY`    |
- | Gemini     | `providers/gemini.zsh`    | `gemini-3-flash-preview`    | `GEMINI_API_KEY`    |
- | DeepSeek   | `providers/deepseek.zsh`  | `deepseek-chat`             | `DEEPSEEK_API_KEY`  |
- | Ollama     | `providers/ollama.zsh`    | `mistral-small`             | (none - local)      |
- | Copilot    | `providers/copilot.zsh`   | `gpt-4o`                    | (none - local)      |
+ | Provider   | File                      | Default Model                  | API Key Env Var     | Custom Endpoint Var           |
+ | ---------- | ------                    | ---------------                | -----------------   | -------------------           |
+ | Anthropic  | `providers/anthropic.zsh` | `claude-haiku-4-5-20251001`    | `ANTHROPIC_API_KEY` |                               |
+ | OpenAI     | `providers/openai.zsh`    | `gpt-5.2-2025-12-11`           | `OPENAI_API_KEY`    | `ZSH_AI_CMD_OPENAI_BASE_URL`  |
+ | Gemini     | `providers/gemini.zsh`    | `gemini-3-flash-preview`       | `GEMINI_API_KEY`    |                               |
+ | DeepSeek   | `providers/deepseek.zsh`  | `deepseek-chat`                | `DEEPSEEK_API_KEY`  |                               |
+ | Ollama     | `providers/ollama.zsh`    | `mistral-small`                | (none - local)      | `ZSH_AI_CMD_OLLAMA_HOST`      |
+ | LMStudio   | `providers/lmstudio.zsh`  | `qwen2.5-coder-7b-instruct`    | (none - local)      | `ZSH_AI_CMD_LMSTUDIO_HOST`    |
+ | Copilot    | `providers/copilot.zsh`   | `gpt-4o`                       | (none - local)      | `ZSH_AI_CMD_COPILOT_HOST`     |
+ | Claude Code | `providers/claude-code.zsh` | (CLI default)               | (none - subscription) |                             |
 
 Set provider via `ZSH_AI_CMD_PROVIDER='openai'` (default: `anthropic`).
 
 **Note:** Copilot requires [copilot-api](https://github.com/ericc-ch/copilot-api) to be running. Install and start with `npx copilot-api start`.
+
+**Note:** Claude Code uses your Claude subscription (Max/Pro/Enterprise) via the [Claude Code CLI](https://github.com/anthropics/claude-code). Install with `npm install -g @anthropic-ai/claude-code` and authenticate with `claude login`. Slower than direct API providers (~5s vs ~1-3s) due to CLI startup overhead.
+
+### API Key Retrieval
+
+Keys are retrieved in this order:
+1. Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
+2. Custom command (`ZSH_AI_CMD_API_KEY_COMMAND` with `${provider}` expansion) — if configured
+3. macOS Keychain (`ZSH_AI_CMD_KEYCHAIN_NAME`)
+
+**Example custom command**:
+```sh
+export ZSH_AI_CMD_API_KEY_COMMAND='secret-tool lookup service ${provider}'
+```
 
 ### Provider Implementation
 
@@ -62,6 +78,7 @@ API response validation tests live in @test-api.sh:
 ./test-api.sh --provider openai
 ./test-api.sh --provider gemini
 ./test-api.sh --provider ollama
+./test-api.sh --provider lmstudio
 ./test-api.sh --provider deepseek
 ```
 
@@ -100,3 +117,88 @@ The plugin uses a state machine to avoid conflicts with other plugins (like zsh-
 - **Deactivate** (on accept/dismiss): Restore original bindings, clear state.
 
 This design avoids permanent widget wrapping, so other plugins' `self-insert` wrappers see buffer changes normally. The idempotency guard at the top prevents double-loading if the plugin is sourced multiple times.
+
+## Release Process
+
+zsh-ai-cmd follows **Semantic Versioning** (`vMAJOR.MINOR.PATCH`) consistent with the zsh ecosystem (zsh-autosuggestions, powerlevel10k, zoxide).
+
+### Version Files
+- **VERSION** — Single line: `v0.1.0` (for runtime version checking, see `cat VERSION`)
+- **CHANGELOG.md** — Detailed changelog per version
+- **git tags** — Source of truth for releases
+
+### Releasing a New Version
+
+#### Step 1: Prepare Changes
+- Ensure all tests pass: `./test-api.sh` and `./test-api-key-command.sh`
+- Review commits since last release: `git log --oneline v0.1.0..HEAD`
+- Update CHANGELOG.md with new version section
+
+#### Step 2: Bump Version
+Use the versioning command: `claude /versioning bump MAJOR|MINOR|PATCH`
+
+Or manually:
+```sh
+# Update VERSION file
+echo "v0.2.0" > VERSION
+
+# Stage and commit
+git add VERSION CHANGELOG.md
+git commit -m "chore: bump version to v0.2.0"
+```
+
+#### Step 3: Tag and Push
+```sh
+# Create annotated tag with release notes
+git tag -a v0.2.0 -m "Release v0.2.0: [feature summary]
+
+Features:
+- Feature 1
+- Feature 2
+
+Testing:
+- All tests passing
+- Backwards compatible"
+
+# Push to remote
+git push origin main v0.2.0
+```
+
+#### Step 4: Create GitHub Release (Optional)
+```sh
+# Create GitHub release from tag (adds release notes for visibility)
+gh release create v0.2.0 --notes "Release v0.2.0: [summary from CHANGELOG.md]"
+```
+
+### Semantic Versioning Guide
+
+- **MAJOR** (v1.0.0): Breaking changes to API or configuration
+- **MINOR** (v0.1.0): New features, backwards compatible
+- **PATCH** (v0.1.1): Bug fixes, no new features
+
+Examples:
+- Custom command feature (new functionality, backwards compatible) → MINOR
+- Provider normalization (bug fix) → PATCH
+- Change API key lookup order → MAJOR
+
+### Checking Current Version
+```sh
+# Check VERSION file
+cat VERSION
+
+# Verify git tags
+git describe --tags --abbrev=0
+```
+
+### Testing Before Release
+```sh
+# Run feature tests
+./test-api-key-command.sh
+
+# Run API validation tests
+./test-api.sh --provider anthropic
+./test-api.sh --provider openai
+
+# Manual testing
+ZSH_AI_CMD_DEBUG=true source ./zsh-ai-cmd.plugin.zsh
+```

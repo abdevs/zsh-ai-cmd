@@ -1,30 +1,49 @@
-# providers/openai.zsh - OpenAI API provider
-# Uses structured outputs with JSON schema for reliable command extraction
+# providers/lmstudio.zsh - LM Studio local inference provider
+# No API key required, runs locally.
 
-typeset -g ZSH_AI_CMD_OPENAI_MODEL=${ZSH_AI_CMD_OPENAI_MODEL:-'gpt-5.2-2025-12-11'}
-# Note: OPENAI_API_KEY is sent as Authorization header to this endpoint
-typeset -g ZSH_AI_CMD_OPENAI_BASE_URL=${ZSH_AI_CMD_OPENAI_BASE_URL:-'https://api.openai.com/v1/chat/completions'}
+typeset -g ZSH_AI_CMD_LMSTUDIO_MODEL=${ZSH_AI_CMD_LMSTUDIO_MODEL:-'qwen2.5-coder-7b-instruct'}
+typeset -g ZSH_AI_CMD_LMSTUDIO_HOST=${ZSH_AI_CMD_LMSTUDIO_HOST:-'localhost:1234'}
 
-_zsh_ai_cmd_openai_call() {
-  local input=$1
-  local prompt=$2
+_zsh_ai_cmd_lmstudio_key_error() {
+  print -u2 "Error: LM Studio provider configurations missing."
+  print -u2 "Ensure ZSH_AI_CMD_LMSTUDIO_HOST is correct."
+  return 1
+}
+
+_zsh_ai_cmd_lmstudio_available() {
+  if [[ -z "$ZSH_AI_CMD_LMSTUDIO_HOST" ]]; then
+    return 1
+  fi
+
+  command curl -sS --max-time 2 "http://$ZSH_AI_CMD_LMSTUDIO_HOST/v1/models" >/dev/null 2>&1
+}
+
+_zsh_ai_cmd_lmstudio_call() {
+  local input="$1"
+  local prompt="$2"
+
+  if [[ -z "$ZSH_AI_CMD_LMSTUDIO_HOST" ]]; then
+    _zsh_ai_cmd_lmstudio_key_error
+    return 1
+  fi
 
   local payload
   payload=$(command jq -nc \
-    --arg model "$ZSH_AI_CMD_OPENAI_MODEL" \
+    --arg model "$ZSH_AI_CMD_LMSTUDIO_MODEL" \
     --arg system "$prompt" \
     --arg content "$input" \
     '{
       model: $model,
-      max_completion_tokens: 256,
       messages: [
         {role: "system", content: $system},
         {role: "user", content: $content}
       ],
+      stream: false,
       response_format: {
         type: "json_schema",
         json_schema: {
           name: "shell_command",
+          strict: true,
           schema: {
             type: "object",
             properties: {
@@ -32,22 +51,21 @@ _zsh_ai_cmd_openai_call() {
             },
             required: ["command"],
             additionalProperties: false
-          },
-          strict: true
+          }
         }
       }
     }')
 
   local response
-  response=$(command curl -sS --max-time 30 "$ZSH_AI_CMD_OPENAI_BASE_URL" \
+  response=$(command curl -sS --max-time 60 -X POST \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
-    -d "$payload" 2>/dev/null)
+    -d "$payload" \
+    "http://$ZSH_AI_CMD_LMSTUDIO_HOST/v1/chat/completions" 2>/dev/null)
 
   # Debug log
   if [[ $ZSH_AI_CMD_DEBUG == true ]]; then
     {
-      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [openai] ==="
+      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [lmstudio] ==="
       print -- "--- REQUEST ---"
       command jq . <<< "$payload"
       print -- "--- RESPONSE ---"
@@ -60,21 +78,9 @@ _zsh_ai_cmd_openai_call() {
   local error_msg
   error_msg=$(print -r -- "$response" | command jq -re '.error.message // empty' 2>/dev/null)
   if [[ -n $error_msg ]]; then
-    print -u2 "zsh-ai-cmd [openai]: $error_msg"
+    print -u2 "zsh-ai-cmd [lmstudio]: $error_msg"
     return 1
   fi
 
-  # Extract command from response
   print -r -- "$response" | command jq -re '.choices[0].message.content | fromjson | .command // empty' 2>/dev/null
-}
-
-_zsh_ai_cmd_openai_key_error() {
-  print -u2 ""
-  print -u2 "zsh-ai-cmd: OPENAI_API_KEY not found"
-  print -u2 ""
-  print -u2 "Set it via environment variable:"
-  print -u2 "  export OPENAI_API_KEY='sk-...'"
-  print -u2 ""
-  print -u2 "Or store in macOS Keychain:"
-  print -u2 "  security add-generic-password -s 'openai-api-key' -a '\$USER' -w 'sk-...'"
 }
