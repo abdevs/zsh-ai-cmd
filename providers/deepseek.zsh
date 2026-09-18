@@ -37,7 +37,7 @@ Respond with valid JSON only. Format: {\"command\": \"best command\", \"destruct
   # Debug log
   if [[ $ZSH_AI_CMD_DEBUG == true ]]; then
     {
-      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [deepseek] ==="
+      print -- "=== $(command date '+%Y-%m-%d %H:%M:%S') [deepseek] ==="
       print -- "--- REQUEST ---"
       command jq . <<< "$payload"
       print -- "--- RESPONSE ---"
