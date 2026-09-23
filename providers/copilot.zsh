@@ -30,7 +30,7 @@ _zsh_ai_cmd_copilot_call() {
   # Debug log
   if [[ $ZSH_AI_CMD_DEBUG == true ]]; then
     {
-      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [copilot] ==="
+      print -- "=== $(command date '+%Y-%m-%d %H:%M:%S') [copilot] ==="
       print -- "--- REQUEST ---"
       command jq . <<< "$payload"
       print -- "--- RESPONSE ---"
@@ -47,8 +47,10 @@ _zsh_ai_cmd_copilot_call() {
     return 1
   fi
 
-  # Extract command from response (plain text — copilot-api does not support structured output)
-  print -r -- "$response" | command jq -re '.choices[0].message.content // empty' 2>/dev/null
+  # Extract command from response (plain text — copilot-api does not support
+  # structured output, so no alternatives and no destructive detection).
+  # Wire format: S<TAB>command.
+  print -r -- "$response" | command jq -re '.choices[0].message.content // empty | "S\t" + gsub("\n"; " ")' 2>/dev/null
 }
 
 _zsh_ai_cmd_copilot_key_error() {

@@ -9,8 +9,9 @@ _zsh_ai_cmd_deepseek_call() {
 
   # DeepSeek requires "json" in prompt when using json_object mode
   local json_prompt="$prompt
+$_ZSH_AI_CMD_PROMPT_STRUCTURED
 
-Respond with valid JSON only. Format: {\"command\": \"your shell command here\"}"
+Respond with valid JSON only. Format: {\"command\": \"best command\", \"destructive\": false, \"alternatives\": [{\"command\": \"alternative\", \"destructive\": false}]}"
 
   local payload
   payload=$(command jq -nc \
@@ -19,7 +20,7 @@ Respond with valid JSON only. Format: {\"command\": \"your shell command here\"}
     --arg content "$input" \
     '{
       model: $model,
-      max_tokens: 256,
+      max_tokens: 1024,
       messages: [
         {role: "system", content: $system},
         {role: "user", content: $content}
@@ -36,7 +37,7 @@ Respond with valid JSON only. Format: {\"command\": \"your shell command here\"}
   # Debug log
   if [[ $ZSH_AI_CMD_DEBUG == true ]]; then
     {
-      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') [deepseek] ==="
+      print -- "=== $(command date '+%Y-%m-%d %H:%M:%S') [deepseek] ==="
       print -- "--- REQUEST ---"
       command jq . <<< "$payload"
       print -- "--- RESPONSE ---"
@@ -53,8 +54,8 @@ Respond with valid JSON only. Format: {\"command\": \"your shell command here\"}
     return 1
   fi
 
-  # Extract command from response (OpenAI-compatible format)
-  print -r -- "$response" | command jq -re '.choices[0].message.content | fromjson | .command // empty' 2>/dev/null
+  # Extract suggestions from response (wire format: D/S<TAB>command per line)
+  _zsh_ai_cmd_extract "$response" '.choices[0].message.content'
 }
 
 _zsh_ai_cmd_deepseek_key_error() {
